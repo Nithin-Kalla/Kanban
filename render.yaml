@@ -7,7 +7,10 @@ services:
     plan: free
     # The API lives in a subdirectory of this monorepo; Render builds from here.
     rootDir: backend
-    buildCommand: npm ci && npm run build
+    # --include=dev is required, not optional: NODE_ENV=production below
+    # makes npm skip devDependencies, and `tsc` lives there, so a plain
+    # `npm ci` installs everything except the compiler the build needs.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:
