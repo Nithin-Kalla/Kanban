@@ -1,0 +1,26 @@
+# Render Blueprint — import this repo at render.com/blueprints and it reads
+# this file instead of needing the dashboard filled in by hand.
+services:
+  - type: web
+    name: kanban-api
+    runtime: node
+    plan: free
+    # The API lives in a subdirectory of this monorepo; Render builds from here.
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Set in the dashboard, not here — these are secrets and this file is
+      # committed. `sync: false` makes Render prompt for them on first deploy.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # The Vercel URL of the frontend, e.g. https://kanban.vercel.app
+      # No trailing slash: the browser's Origin header never has one, and a
+      # mismatched string is a silent CORS failure.
+      - key: CORS_ORIGINS
+        sync: false

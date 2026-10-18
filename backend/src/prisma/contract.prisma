@@ -1,0 +1,59 @@
+// use prisma-8
+
+model User {
+  id          String            @id @default(uuid())
+  username    String            @unique
+  password    String
+  ownedBoards Board[]
+  memberships BoardMember[]
+  createdAt   TimestamptzString @default(now())
+}
+
+model Board {
+  id        String            @id @default(uuid())
+  name      String
+  ownerId   String
+  owner     User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members   BoardMember[]
+  columns   Column[]
+  createdAt TimestamptzString @default(now())
+
+  @@index([ownerId])
+}
+
+/// Grants a user access to a board they don't own. The owner gets no row here —
+/// ownership lives on Board.ownerId, so there is exactly one place a board's
+/// owner is recorded and no chance of the two disagreeing.
+model BoardMember {
+  id        String            @id @default(uuid())
+  boardId   String
+  board     Board             @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt TimestamptzString @default(now())
+
+  @@unique([boardId, userId])
+  @@index([userId])
+}
+
+model Column {
+  id       String  @id @default(uuid())
+  name     String
+  position Int
+  boardId  String
+  board    Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards    Card[]
+
+  @@index([boardId])
+}
+
+model Card {
+  id        String            @id @default(uuid())
+  title     String
+  position  Int
+  columnId  String
+  column    Column            @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  createdAt TimestamptzString @default(now())
+
+  @@index([columnId])
+}
