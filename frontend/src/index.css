@@ -482,3 +482,62 @@ h3 {
     padding: 12px 14px;
   }
 }
+
+/* ---------------------------------------------------------- wake banner */
+
+.wake-banner {
+  position: fixed;
+  z-index: 50;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  transform: translateX(-50%);
+  animation: wake-in 0.2s ease;
+}
+
+@keyframes wake-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+.wake-spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: wake-spin 0.7s linear infinite;
+}
+
+@keyframes wake-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wake-elapsed {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Respect a reduced-motion preference: keep the banner, drop the spin. */
+@media (prefers-reduced-motion: reduce) {
+  .wake-spinner,
+  .wake-banner {
+    animation: none;
+  }
+}

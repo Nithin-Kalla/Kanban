@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAuthStore } from './auth/store'
+import { useServerWake } from './queries/health'
 import { AuthPage } from './components/AuthPage'
 import { Board } from './components/Board'
 import { BoardList } from './components/BoardList'
+import { ServerWakeBanner } from './components/ServerWakeBanner'
 
 /**
  * Picks the screen: no token means sign in, no board picked means choose one,
@@ -17,11 +19,26 @@ function App() {
   const token = useAuthStore((state) => state.token)
   const [boardId, setBoardId] = useState<string | null>(null)
 
+  // Fires a ping on load, so a sleeping host starts waking before the user
+  // has typed anything, and reports when we're waiting on a slow request.
+  const { slow, since } = useServerWake()
+
   // The 401 interceptor clears the token when it expires, which lands here and
   // returns the user to sign-in without any explicit redirect.
-  if (!token) return <AuthPage />
-  if (boardId) return <Board boardId={boardId} onBack={() => setBoardId(null)} />
-  return <BoardList onOpen={setBoardId} />
+  const screen = !token ? (
+    <AuthPage />
+  ) : boardId ? (
+    <Board boardId={boardId} onBack={() => setBoardId(null)} />
+  ) : (
+    <BoardList onOpen={setBoardId} />
+  )
+
+  return (
+    <>
+      {slow ? <ServerWakeBanner since={since} /> : null}
+      {screen}
+    </>
+  )
 }
 
 export default App
