@@ -42,9 +42,19 @@ export const isProduction = env.NODE_ENV === "production";
  * with a visitor's credentials.
  */
 export const corsOrigins: string[] | true = (() => {
-    const configured = env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean);
+    const configured = env.CORS_ORIGINS
+        .split(",")
+        .map((o) => o.trim().replace(/\/+$/, ""))
+        .filter(Boolean);
 
-    if (configured.length > 0) return configured;
+    if (configured.length > 0) {
+        // Logged because a CORS rejection is invisible from the server's side:
+        // the request succeeds with a 200 and the browser silently discards it.
+        // Seeing the exact list in the deploy log is the fastest way to spot a
+        // typo'd or stale origin.
+        console.log(`🔓 CORS allows: ${configured.join(", ")}`);
+        return configured;
+    }
 
     if (isProduction) {
         console.error("❌ CORS_ORIGINS must be set in production");
