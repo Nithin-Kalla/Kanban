@@ -15,9 +15,17 @@ const app = express();
 // CORS_ORIGINS, and the server refuses to boot without one.
 app.use(cors({ origin: corsOrigins }))
 
-// Deploy platforms poll this to decide whether the instance is healthy, and it
-// is the quickest way to tell a sleeping free-tier dyno from a broken one.
-app.get("/health", (_req, res) => res.json({ ok: true }))
+/**
+ * Readiness probe. Render polls it, and the browser pings it on page load to
+ * start waking a sleeping instance.
+ *
+ * Deliberately NOT called `/health`: EasyPrivacy ships the rule
+ * `||onrender.com/health`, so Brave, uBlock Origin and AdGuard block that path
+ * on every onrender.com host — the request never leaves the browser. The rule
+ * matches by prefix, so `/healthz` and `/health-check` are blocked too. Don't
+ * rename this back.
+ */
+app.get("/ready", (_req, res) => res.json({ ok: true }))
 
 app.use(express.json())
 

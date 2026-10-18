@@ -12,7 +12,7 @@ services:
     # `npm ci` installs everything except the compiler the build needs.
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
-    healthCheckPath: /health
+    healthCheckPath: /ready
     envVars:
       - key: NODE_ENV
         value: production
