@@ -8,3 +8,6 @@ import { db } from "./db.js";
  * whether the queries join an open transaction.
  */
 export type Orm = typeof db.orm;
+
+/** The handle `db.transaction` hands its callback. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

@@ -5,6 +5,7 @@ import { emitToBoard } from "../realtime/socket.js";
 import { assertBoardAccess, boardIdOfColumn, locateCard } from "../auth/boardAccess.js";
 import { requireUser } from "../middleware/utils.js";
 import type { Orm } from "../prisma/orm.js";
+import { lockColumns } from "../prisma/locks.js";
 
 /** Ids of a column's cards, in display order. */
 const orderedIds = async (orm: Orm, columnId: string) => {
@@ -55,12 +56,33 @@ export const moveCard = async (
     const user = requireUser(req);
 
     const boardId = await db.transaction(async (tx) => {
+        // Read once to learn which columns are involved, lock them, then read
+        // again. Only the second read is trustworthy: until the locks are
+        // held, another transaction can move or delete this card underneath
+        // us, and acting on the first read is what produced a 500 when a move
+        // raced a delete.
+        const before = await tx.orm.public.Card
+            .select("id", "columnId")
+            .where({ id })
+            .first();
+
+        if (!before) throw new AppError(404, "Card not found");
+
+        await lockColumns(tx, before.columnId, toColumnId);
+
         const card = await tx.orm.public.Card
             .select("id", "columnId")
             .where({ id })
             .first();
 
+        // Deleted while we waited for the lock.
         if (!card) throw new AppError(404, "Card not found");
+
+        // Moved elsewhere while we waited: its real source isn't the column we
+        // locked, so take that one too before touching its order.
+        if (card.columnId !== before.columnId) {
+            await lockColumns(tx, card.columnId);
+        }
 
         const [fromColumn, toColumn] = await Promise.all([
             tx.orm.public.Column.select("id", "boardId").where({ id: card.columnId }).first(),
@@ -120,6 +142,11 @@ export const createCard = async (
         const boardId = await boardIdOfColumn(tx.orm, columnId);
         await assertBoardAccess(tx.orm, boardId, user.id);
 
+        // Counting siblings and inserting at count+1 is a read-then-write;
+        // without the lock, simultaneous creates all read the same count and
+        // claim the same position.
+        await lockColumns(tx, columnId);
+
         const siblings = await orderedIds(tx.orm, columnId);
         const card = await tx.orm.public.Card
             .select("id", "title", "position")
@@ -178,8 +205,20 @@ export const deleteCard = async (req: Request<{ id: string }>, res: Response) =>
         const { boardId, columnId } = await locateCard(tx.orm, id);
         await assertBoardAccess(tx.orm, boardId, user.id);
 
+        await lockColumns(tx, columnId);
+
+        // Re-read under the lock. `locateCard` above ran before it, so its
+        // column may already be stale — and renumbering the column the card
+        // *used* to be in leaves a gap in the one it actually left.
+        const card = await tx.orm.public.Card.select("id", "columnId").where({ id }).first();
+        if (!card) throw new AppError(404, "Card not found");
+
+        if (card.columnId !== columnId) {
+            await lockColumns(tx, card.columnId);
+        }
+
         await tx.orm.public.Card.where({ id }).delete();
-        await renumber(tx.orm, await orderedIds(tx.orm, columnId), columnId);
+        await renumber(tx.orm, await orderedIds(tx.orm, card.columnId), card.columnId);
 
         return boardId;
     });

@@ -29,7 +29,24 @@ export function useBoardRealtime(boardId: string) {
   const [present, setPresent] = useState<AuthUser[]>([])
 
   useEffect(() => {
-    const join = () => socket.emit('join-board', boardId)
+    // Rooms are per-connection, and a reconnect is a *new* connection: for as
+    // long as the socket was down this tab was not in the room, so every
+    // broadcast in that window went undelivered and is never retried.
+    // Re-joining restores the feed but not the gap, so the board is refetched
+    // to resync — the one case where the full fetch is the cheap answer.
+    //
+    // Skipped on the very first connect, where the initial fetch is already
+    // in flight.
+    let reconnecting = false
+
+    const onConnect = () => {
+      socket.emit('join-board', boardId)
+
+      if (reconnecting) {
+        queryClient.invalidateQueries({ queryKey: boardQueryKey(boardId) })
+      }
+      reconnecting = true
+    }
 
     /** Rewrite the cached board, if there is one. An event must never conjure
      *  a board that hasn't loaded — the normal fetch does that. */
@@ -66,12 +83,11 @@ export function useBoardRealtime(boardId: string) {
     )
     const onPresence = forThisBoard((e: BoardEvents['presence']) => setPresent(e.users))
 
+    socket.on('connect', onConnect)
     socket.connect()
-    join()
 
-    // Rooms are per-connection, and a reconnect is a new connection. Without
-    // re-joining, the tab stays connected but silently stops receiving events.
-    socket.on('connect', join)
+    // An already-open socket emits no 'connect' event, so join explicitly.
+    if (socket.connected) onConnect()
 
     socket.on('card-moved', onCardMoved)
     socket.on('card-created', onCardCreated)
@@ -85,7 +101,7 @@ export function useBoardRealtime(boardId: string) {
 
       // `off` only removes a listener given the same function reference `on`
       // got, which is why each one is a named const above.
-      socket.off('connect', join)
+      socket.off('connect', onConnect)
       socket.off('card-moved', onCardMoved)
       socket.off('card-created', onCardCreated)
       socket.off('card-updated', onCardUpdated)

@@ -3,6 +3,7 @@ import { db } from "../prisma/db.js";
 import { emitToBoard } from "../realtime/socket.js";
 import { assertBoardAccess } from "../auth/boardAccess.js";
 import { requireUser } from "../middleware/utils.js";
+import { lockBoard } from "../prisma/locks.js";
 
 export type CreateColumnBody = {
     boardId: string;
@@ -28,6 +29,9 @@ export const createColumn = async (
 
     const column = await db.transaction(async (tx) => {
         await assertBoardAccess(tx.orm, boardId, user.id);
+
+        // Same read-then-write race as creating a card, one level up.
+        await lockBoard(tx, boardId);
 
         const siblings = await tx.orm.public.Column.select("id").where({ boardId }).all();
 
